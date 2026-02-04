@@ -3,7 +3,7 @@ import crypto from "crypto";
 import cors from "cors";
 import dotenv from "dotenv";
 import pkg from "pg";
-import { Parser } from "json2csv";
+import { Parser } from "json2csv"; // Imported once at the top
 
 // Load environment variables from .env file (for local development)
 dotenv.config();
@@ -33,7 +33,6 @@ app.post("/create-payment", async (req, res) => {
   // 👇 STRICT: Reads only from environment variables
   const BACKEND_URL = process.env.BACKEND_URL; 
   
-  // Safety check: If variable is missing, warn the developer
   if (!BACKEND_URL) {
     console.error("CRITICAL: BACKEND_URL is not set in environment variables!");
     return res.status(500).json({ error: "Server configuration error" });
@@ -78,7 +77,6 @@ app.post("/create-payment", async (req, res) => {
     firstname,
     email,
     phone,
-    // 👇 Uses the variable strictly
     surl: `${BACKEND_URL}/payu-success`,
     furl: `${BACKEND_URL}/payu-failure`,
     hash
@@ -92,7 +90,6 @@ app.all("/payu-success", async (req, res) => {
   const mihpayid = data.mihpayid;
   const status = data.status;
 
-  // 👇 STRICT: Reads only from environment variables
   const FRONTEND_URL = process.env.FRONTEND_URL;
 
   if (!FRONTEND_URL) {
@@ -118,7 +115,6 @@ app.all("/payu-failure", async (req, res) => {
   const data = { ...req.body, ...req.query };
   const txnid = data.txnid;
   
-  // 👇 STRICT: Reads only from environment variables
   const FRONTEND_URL = process.env.FRONTEND_URL;
 
   if (txnid) {
@@ -130,7 +126,6 @@ app.all("/payu-failure", async (req, res) => {
     );
   }
 
-  // If FRONTEND_URL is missing, this line will fail, so ensure it is set!
   res.redirect(FRONTEND_URL ? `${FRONTEND_URL}/failure` : "/");
 });
 
@@ -141,39 +136,23 @@ app.all("/payu-failure", async (req, res) => {
 app.post("/admin/download-registrations", async (req, res) => {
   const { password } = req.body;
 
-  // 1. CHECK PASSWORD (Set this in your .env file!)
-  // If you haven't set ADMIN_PASSWORD in Railway variables, 
-  // you can temporarily hardcode it here like: if (password !== "mysecret123")
   if (password !== process.env.ADMIN_PASSWORD) {
     return res.status(401).json({ error: "Unauthorized: Wrong Password" });
   }
 
   try {
-    // 2. FETCH DATA FROM DATABASE
     const result = await pool.query(
       `SELECT
-        txnid,
-        name,
-        email,
-        phone,
-        profession,
-        state,
-        batch,
-        amount,
-        payment_status,
-        payu_txn_id,
-        created_at
+        txnid, name, email, phone, profession, state, batch, amount,
+        payment_status, payu_txn_id, created_at
        FROM registrations
        ORDER BY created_at DESC`
     );
 
-    // 3. CONVERT TO CSV
-    // Ensure you have 'json2csv' installed: npm install json2csv
-    const { Parser } = await import("json2csv");
+    // Uses the top-level import "Parser"
     const parser = new Parser();
     const csv = parser.parse(result.rows);
 
-    // 4. SEND FILE TO FRONTEND
     res.setHeader("Content-Type", "text/csv");
     res.setHeader(
       "Content-Disposition",
