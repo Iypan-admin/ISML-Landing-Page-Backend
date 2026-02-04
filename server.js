@@ -134,6 +134,60 @@ app.all("/payu-failure", async (req, res) => {
   res.redirect(FRONTEND_URL ? `${FRONTEND_URL}/failure` : "/");
 });
 
+
+/* -------------------------------------------
+   EXPORT REGISTRATIONS AS CSV
+   ------------------------------------------- */
+app.post("/admin/download-registrations", async (req, res) => {
+  const { password } = req.body;
+
+  // 1. CHECK PASSWORD (Set this in your .env file!)
+  // If you haven't set ADMIN_PASSWORD in Railway variables, 
+  // you can temporarily hardcode it here like: if (password !== "mysecret123")
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized: Wrong Password" });
+  }
+
+  try {
+    // 2. FETCH DATA FROM DATABASE
+    const result = await pool.query(
+      `SELECT
+        txnid,
+        name,
+        email,
+        phone,
+        profession,
+        state,
+        batch,
+        amount,
+        payment_status,
+        payu_txn_id,
+        created_at
+       FROM registrations
+       ORDER BY created_at DESC`
+    );
+
+    // 3. CONVERT TO CSV
+    // Ensure you have 'json2csv' installed: npm install json2csv
+    const { Parser } = await import("json2csv");
+    const parser = new Parser();
+    const csv = parser.parse(result.rows);
+
+    // 4. SEND FILE TO FRONTEND
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=ISML_Registrations.csv"
+    );
+
+    res.send(csv);
+
+  } catch (err) {
+    console.error("EXPORT ERROR:", err);
+    res.status(500).send("Download failed");
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
