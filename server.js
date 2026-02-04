@@ -45,7 +45,7 @@ app.post("/create-payment", async (req, res) => {
   }
 
   const txnid = "TXN" + Date.now();
-  const finalAmount = String(amount || "1.00");
+  const finalAmount = String(amount || "1299.00");
   const productinfo = "ISML Foundation Program";
   const firstname = name;
 
