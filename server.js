@@ -38,9 +38,9 @@ app.post("/create-payment", async (req, res) => {
     return res.status(500).json({ error: "Server configuration error" });
   }
 
-  const { name, email, phone, profession, state, batch, amount } = req.body;
+ const { name, email, phone, profession, state, batch, language, amount } = req.body;
 
-  if (!name || !email || !phone || !profession || !state || !batch) {
+  if (!name || !email || !phone || !profession || !state || !batch || !language) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -52,9 +52,9 @@ app.post("/create-payment", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO registrations
-       (txnid, name, email, phone, profession, state, batch, amount, payment_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [txnid, name, email, phone, profession, state, batch, finalAmount, "INITIATED"]
+       (txnid, name, email, phone, profession, state, batch, language, amount, payment_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [txnid, name, email, phone, profession, state, batch, language, finalAmount, "INITIATED"]
     );
   } catch (err) {
     console.error("Database Error:", err);
@@ -143,7 +143,7 @@ app.post("/admin/download-registrations", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        txnid, name, email, phone, profession, state, batch, amount,
+        txnid, name, email, phone, profession, state, batch, language, amount,
         payment_status, payu_txn_id, created_at
        FROM registrations
        ORDER BY created_at DESC`
