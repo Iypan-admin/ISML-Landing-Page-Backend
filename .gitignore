@@ -1,24 +1,43 @@
-# dependencies
+# ==============================
+# Dependencies
+# ==============================
 node_modules/
 
-# environment variables (VERY IMPORTANT)
+# ==============================
+# Environment Variables (VERY IMPORTANT)
+# ==============================
 .env
+.env.*
 .env.local
 .env.production
 
-# logs
+# ==============================
+# Logs
+# ==============================
 logs
 *.log
 npm-debug.log*
 
-# build output
+# ==============================
+# Build Output
+# ==============================
 dist/
 build/
 
-# OS files
+# ==============================
+# OS Files
+# ==============================
 .DS_Store
 Thumbs.db
 
-# IDE
+# ==============================
+# Editor / IDE
+# ==============================
 .vscode/
 .idea/
+
+# ==============================
+# Temp / Cache
+# ==============================
+tmp/
+.cache
