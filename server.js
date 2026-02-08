@@ -167,6 +167,72 @@ app.post("/admin/download-registrations", async (req, res) => {
   }
 });
 
+
+/* -------------------------------------------
+   CREATE INFLUENCER LINK (ADMIN)
+------------------------------------------- */
+app.post("/admin/create-influencer", async (req, res) => {
+
+  const { password, name, email, phone } = req.body;
+
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+
+    // ⭐ Generate unique referral code
+    const ref_code = "INF" + Date.now();
+
+    await pool.query(
+      `INSERT INTO influencers (ref_code, name, email, phone)
+       VALUES ($1,$2,$3,$4)`,
+      [ref_code, name, email, phone]
+    );
+
+    res.json({
+      ref_code,
+      link: `${process.env.FRONTEND_URL}/?ref=${ref_code}`
+    });
+
+  } catch (err) {
+    console.error("CREATE INFLUENCER ERROR:", err);
+    res.status(500).json({ error: "Failed to create influencer" });
+  }
+});
+
+
+/* -------------------------------------------
+   INFLUENCER ANALYTICS (ADMIN)
+------------------------------------------- */
+app.post("/admin/influencer-stats", async (req, res) => {
+
+  const { password, ref_code } = req.body;
+
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+
+    const result = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE payment_status='INITIATED') AS initiated,
+        COUNT(*) FILTER (WHERE payment_status='SUCCESS') AS success,
+        COALESCE(SUM(amount::numeric) FILTER (WHERE payment_status='SUCCESS'),0) AS revenue
+      FROM registrations
+      WHERE referral = $1
+    `, [ref_code]);
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error("STATS ERROR:", err);
+    res.status(500).json({ error: "Stats fetch failed" });
+  }
+});
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
