@@ -230,11 +230,12 @@ app.post("/admin/influencer-stats", async (req, res) => {
 
     const result = await pool.query(`
       SELECT
-        COUNT(*) FILTER (WHERE payment_status='INITIATED') AS initiated,
-        COUNT(*) FILTER (WHERE payment_status='SUCCESS') AS success,
-        COALESCE(SUM(amount::numeric) FILTER (WHERE payment_status='SUCCESS'),0) AS revenue
-      FROM registrations
-      WHERE referral = $1
+      COUNT(*) FILTER (WHERE payment_status='INITIATED') AS initiated,
+      COUNT(*) FILTER (WHERE payment_status='SUCCESS') AS success,
+      COUNT(*) FILTER (WHERE payment_status='FAILED') AS failed,
+      COALESCE(SUM(amount::numeric) FILTER (WHERE payment_status='SUCCESS'),0) AS revenue
+    FROM registrations
+    WHERE referral = $1
     `, [ref_code]);
 
     res.json(result.rows[0]);
