@@ -38,7 +38,7 @@ app.post("/create-payment", async (req, res) => {
     return res.status(500).json({ error: "Server configuration error" });
   }
 
- const { name, email, phone, profession, state, batch, language, amount } = req.body;
+const { name, email, phone, profession, state, batch, language, amount, referral } = req.body;
 
   if (!name || !email || !phone || !profession || !state || !batch || !language) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -52,9 +52,22 @@ app.post("/create-payment", async (req, res) => {
   try {
     await pool.query(
       `INSERT INTO registrations
-       (txnid, name, email, phone, profession, state, batch, language, amount, payment_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [txnid, name, email, phone, profession, state, batch, language, finalAmount, "INITIATED"]
+        (txnid, name, email, phone, profession, state, batch, language, amount, payment_status, referral)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+        txnid,
+        name,
+        email,
+        phone,
+        profession,
+        state,
+        batch,
+        language,
+        finalAmount,
+        "INITIATED",
+        referral || null
+      ]
+
     );
   } catch (err) {
     console.error("Database Error:", err);
