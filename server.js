@@ -182,6 +182,59 @@ app.post("/admin/download-registrations", async (req, res) => {
 
 
 /* -------------------------------------------
+   EXPORT INFLUENCERS AS CSV
+------------------------------------------- */
+app.post("/admin/download-influencers", async (req, res) => {
+
+  const { password } = req.body;
+
+  if (password !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Unauthorized: Wrong Password" });
+  }
+
+  try {
+
+    // 🔥 Includes analytics automatically
+    const result = await pool.query(`
+      SELECT
+        i.ref_code,
+        i.name,
+        i.email,
+        i.phone,
+        COUNT(r.*) FILTER (WHERE r.payment_status='INITIATED') AS initiated,
+        COUNT(r.*) FILTER (WHERE r.payment_status='SUCCESS') AS success,
+        COUNT(r.*) FILTER (WHERE r.payment_status='FAILED') AS failed,
+        COALESCE(
+          SUM(r.amount::numeric) FILTER (WHERE r.payment_status='SUCCESS'),
+          0
+        ) AS revenue
+      FROM influencers i
+      LEFT JOIN registrations r
+      ON i.ref_code = r.referral
+      GROUP BY i.ref_code, i.name, i.email, i.phone
+      ORDER BY i.ref_code DESC
+    `);
+
+    const parser = new Parser();
+    const csv = parser.parse(result.rows);
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=ISML_Influencers.csv"
+    );
+
+    res.send(csv);
+
+  } catch (err) {
+    console.error("INFLUENCER EXPORT ERROR:", err);
+    res.status(500).send("Download failed");
+  }
+});
+
+
+
+/* -------------------------------------------
    CREATE INFLUENCER LINK (ADMIN)
 ------------------------------------------- */
 app.post("/admin/create-influencer", async (req, res) => {
