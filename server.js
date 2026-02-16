@@ -157,7 +157,7 @@ app.post("/admin/download-registrations", async (req, res) => {
     const result = await pool.query(
       `SELECT
         txnid, name, email, phone, profession, state, batch, language, amount,
-        payment_status, payu_txn_id, created_at
+        payment_status, payu_txn_id, created_at, referral
        FROM registrations
        ORDER BY created_at DESC`
     );
