@@ -37,14 +37,21 @@ function verifyPayUHash(data) {
     `${data.udf2 || ""}|${data.udf1 || ""}|${data.email}|${data.firstname}|` +
     `${data.productinfo}|${data.amount}|${data.txnid}|${key}`;
 
-  // Format 2: Webhook hash (includes additionalCharges)
+  // Format 2: Webhook hash — additionalCharges comes right after salt|status
   const format2 =
+    `${salt}|${data.status}|${data.additionalCharges || ""}|${data.udf5 || ""}|${data.udf4 || ""}|` +
+    `${data.udf3 || ""}|${data.udf2 || ""}|${data.udf1 || ""}|${data.email}|${data.firstname}|` +
+    `${data.productinfo}|${data.amount}|${data.txnid}|${key}`;
+
+  // Format 3: Webhook hash — additionalCharges at the end after key
+  const format3 =
     `${salt}|${data.status}|${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|` +
     `${data.udf2 || ""}|${data.udf1 || ""}|${data.email}|${data.firstname}|` +
     `${data.productinfo}|${data.amount}|${data.txnid}|${key}|${data.additionalCharges || ""}`;
 
   const hash1 = crypto.createHash("sha512").update(format1, "utf8").digest("hex");
   const hash2 = crypto.createHash("sha512").update(format2, "utf8").digest("hex");
+  const hash3 = crypto.createHash("sha512").update(format3, "utf8").digest("hex");
 
   const incoming = data.hash?.trim();
 
@@ -53,17 +60,23 @@ function verifyPayUHash(data) {
     return true;
   }
   if (incoming === hash2) {
-    console.log("[verifyPayUHash] Matched format2 (webhook with additionalCharges)");
+    console.log("[verifyPayUHash] Matched format2 (webhook additionalCharges after salt)");
+    return true;
+  }
+  if (incoming === hash3) {
+    console.log("[verifyPayUHash] Matched format3 (webhook additionalCharges at end)");
     return true;
   }
 
-  // Log for debugging — shows what we computed vs what PayU sent
+  // Log for debugging
   console.error("[verifyPayUHash] No match.");
   console.error("  Incoming hash :", incoming);
   console.error("  Format1 hash  :", hash1);
   console.error("  Format2 hash  :", hash2);
+  console.error("  Format3 hash  :", hash3);
   console.error("  Format1 string:", format1);
   console.error("  Format2 string:", format2);
+  console.error("  Format3 string:", format3);
 
   return false;
 }
