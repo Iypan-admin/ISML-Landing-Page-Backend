@@ -25,21 +25,47 @@ app.get("/", (req, res) => {
 });
 
 // ─── Helper: verify PayU reverse hash ─────────────────────────────────────────
+// PayU uses different hash formats for redirect callbacks vs webhooks.
+// We try both and accept if either matches.
 function verifyPayUHash(data) {
   const salt = process.env.PAYU_MERCHANT_SALT?.trim();
   const key  = process.env.PAYU_MERCHANT_KEY?.trim();
 
-  const reverseHashString =
+  // Format 1: Standard redirect callback hash
+  const format1 =
     `${salt}|${data.status}|${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|` +
     `${data.udf2 || ""}|${data.udf1 || ""}|${data.email}|${data.firstname}|` +
     `${data.productinfo}|${data.amount}|${data.txnid}|${key}`;
 
-  const expectedHash = crypto
-    .createHash("sha512")
-    .update(reverseHashString, "utf8")
-    .digest("hex");
+  // Format 2: Webhook hash (includes additionalCharges)
+  const format2 =
+    `${salt}|${data.status}|${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|` +
+    `${data.udf2 || ""}|${data.udf1 || ""}|${data.email}|${data.firstname}|` +
+    `${data.productinfo}|${data.amount}|${data.txnid}|${key}|${data.additionalCharges || ""}`;
 
-  return data.hash === expectedHash;
+  const hash1 = crypto.createHash("sha512").update(format1, "utf8").digest("hex");
+  const hash2 = crypto.createHash("sha512").update(format2, "utf8").digest("hex");
+
+  const incoming = data.hash?.trim();
+
+  if (incoming === hash1) {
+    console.log("[verifyPayUHash] Matched format1 (redirect)");
+    return true;
+  }
+  if (incoming === hash2) {
+    console.log("[verifyPayUHash] Matched format2 (webhook with additionalCharges)");
+    return true;
+  }
+
+  // Log for debugging — shows what we computed vs what PayU sent
+  console.error("[verifyPayUHash] No match.");
+  console.error("  Incoming hash :", incoming);
+  console.error("  Format1 hash  :", hash1);
+  console.error("  Format2 hash  :", hash2);
+  console.error("  Format1 string:", format1);
+  console.error("  Format2 string:", format2);
+
+  return false;
 }
 
 // ─── Helper: update DB on successful payment (with email fallback) ─────────────
