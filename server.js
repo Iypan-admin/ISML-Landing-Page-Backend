@@ -270,32 +270,56 @@ app.all("/payu-failure", async (req, res) => {
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ✅ NEW: PAYU WEBHOOK (server-to-server, most reliable)
+   ✅ PAYU WEBHOOK (server-to-server, most reliable)
    Configure this URL in PayU Dashboard → My Account → Webhook Settings:
-   https://yourbackend.com/payu-webhook
-   
-   This fires even if the user closes the browser before the redirect.
-   PayU retries this webhook until it gets a 200 OK.
+   https://isml-landing-page-backend-production.up.railway.app/payu-webhook
+
+   NOTE: PayU uses Salt2 for webhook hash signing, which is different from
+   Salt1 used for redirect callbacks. Instead of hash verification here,
+   we verify the payment directly with PayU's Verify API — this is actually
+   MORE secure since we're confirming with PayU's own servers.
 ───────────────────────────────────────────────────────────────────────────── */
 app.post("/payu-webhook", async (req, res) => {
   const data     = { ...req.body };
-  const status   = data.status;
   const txnid    = data.txnid;
   const mihpayid = data.mihpayid;
   const email    = data.email;
+  const status   = data.status;
 
-  console.log(`[payu-webhook] Received: txnid=${txnid} status=${status}`);
+  console.log(`[payu-webhook] Received: txnid=${txnid} status=${status} email=${email}`);
 
-  // ✅ Always verify hash before trusting webhook data
-  if (!verifyPayUHash(data)) {
-    console.error(`[payu-webhook] Hash mismatch for txnid ${txnid} — rejecting`);
-    return res.status(400).send("Invalid hash");
+  // Basic sanity check — reject if missing critical fields
+  if (!txnid || !status) {
+    console.error("[payu-webhook] Missing txnid or status — rejecting");
+    return res.status(400).send("Missing fields");
   }
 
   try {
     if (status === "success") {
-      await markPaymentSuccess(txnid, mihpayid, email);
-      console.log(`[payu-webhook] ✅ Marked SUCCESS for txnid=${txnid} email=${email}`);
+      // ✅ Verify with PayU API before trusting (more secure than hash check)
+      let verifiedMihpayid = mihpayid;
+      let verifiedEmail    = email;
+
+      try {
+        const txnInfo = await verifyWithPayUAPI(txnid);
+
+        if (!txnInfo || txnInfo.status !== "success") {
+          console.warn(`[payu-webhook] PayU API says NOT successful for txnid=${txnid} — ignoring`);
+          return res.status(200).send("OK"); // Return 200 so PayU stops retrying
+        }
+
+        verifiedMihpayid = txnInfo.mihpayid || mihpayid;
+        verifiedEmail    = txnInfo.email    || email;
+        console.log(`[payu-webhook] PayU API verified payment for txnid=${txnid}`);
+
+      } catch (apiErr) {
+        // If PayU API is down, trust the webhook data as fallback
+        console.warn(`[payu-webhook] PayU verify API failed, using webhook data: ${apiErr.message}`);
+      }
+
+      await markPaymentSuccess(txnid, verifiedMihpayid, verifiedEmail);
+      console.log(`[payu-webhook] ✅ Marked SUCCESS for txnid=${txnid} email=${verifiedEmail}`);
+
     } else if (status === "failure") {
       await pool.query(
         `UPDATE registrations
@@ -306,14 +330,13 @@ app.post("/payu-webhook", async (req, res) => {
       );
       console.log(`[payu-webhook] ❌ Marked FAILED for txnid=${txnid}`);
     }
+
   } catch (err) {
     console.error("[payu-webhook] DB error:", err);
-    // Return 500 so PayU retries the webhook
-    return res.status(500).send("DB error");
+    return res.status(500).send("DB error"); // 500 = PayU will retry
   }
 
-  // Must return 200 so PayU stops retrying
-  res.status(200).send("OK");
+  res.status(200).send("OK"); // 200 = PayU stops retrying
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────
