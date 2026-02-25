@@ -367,7 +367,7 @@ app.post("/admin/get-influencers", async (req, res) => {
         i.email,
         i.phone,
         i.referred_by,
-        r2.name AS referred_by_name,
+        i.referred_by_name,
         COUNT(r.*) FILTER (WHERE r.payment_status = 'INITIATED') AS initiated,
         COUNT(r.*) FILTER (WHERE r.payment_status = 'SUCCESS')   AS success,
         COUNT(r.*) FILTER (WHERE r.payment_status = 'FAILED')    AS failed,
@@ -377,8 +377,7 @@ app.post("/admin/get-influencers", async (req, res) => {
         COALESCE((SELECT SUM(p.amount) FROM payouts p WHERE p.influencer_ref_code = i.ref_code AND p.status = 'PAID'), 0) AS paid_payout
       FROM influencers i
       LEFT JOIN registrations r ON i.ref_code = r.referral
-      LEFT JOIN influencers r2 ON i.referred_by = r2.ref_code
-      GROUP BY i.ref_code, i.name, i.email, i.phone, i.referred_by, r2.name
+      GROUP BY i.ref_code, i.name, i.email, i.phone, i.referred_by, i.referred_by_name
       ORDER BY i.ref_code DESC
     `);
     res.json(result.rows);
@@ -426,20 +425,14 @@ app.post("/admin/download-influencers", async (req, res) => {
    CREATE INFLUENCER (ADMIN) — now supports referred_by
 ───────────────────────────────────────────────────────────────────────────── */
 app.post("/admin/create-influencer", async (req, res) => {
-  const { password, name, email, phone, referred_by } = req.body;
+  const { password, name, email, phone, referred_by, referred_by_name } = req.body;
   if (password !== process.env.ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    // Validate referred_by exists if provided
-    if (referred_by) {
-      const check = await pool.query(`SELECT ref_code FROM influencers WHERE ref_code = $1`, [referred_by]);
-      if (check.rowCount === 0) return res.status(400).json({ error: `Referrer ref_code '${referred_by}' not found` });
-    }
-
     const ref_code = "INF" + Date.now();
     await pool.query(
-      `INSERT INTO influencers (ref_code, name, email, phone, referred_by) VALUES ($1,$2,$3,$4,$5)`,
-      [ref_code, name, email, phone, referred_by || null]
+      `INSERT INTO influencers (ref_code, name, email, phone, referred_by, referred_by_name) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [ref_code, name, email, phone, referred_by || null, referred_by_name || null]
     );
 
     res.json({ ref_code, link: `${process.env.FRONTEND_URL}/?ref=${ref_code}` });
@@ -453,18 +446,13 @@ app.post("/admin/create-influencer", async (req, res) => {
    EDIT INFLUENCER (ADMIN)
 ───────────────────────────────────────────────────────────────────────────── */
 app.post("/admin/edit-influencer", async (req, res) => {
-  const { password, ref_code, name, email, phone, referred_by } = req.body;
+  const { password, ref_code, name, email, phone, referred_by, referred_by_name } = req.body;
   if (password !== process.env.ADMIN_PASSWORD) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    if (referred_by) {
-      const check = await pool.query(`SELECT ref_code FROM influencers WHERE ref_code = $1`, [referred_by]);
-      if (check.rowCount === 0) return res.status(400).json({ error: `Referrer ref_code '${referred_by}' not found` });
-    }
-
     await pool.query(
-      `UPDATE influencers SET name=$1, email=$2, phone=$3, referred_by=$4 WHERE ref_code=$5`,
-      [name, email, phone, referred_by || null, ref_code]
+      `UPDATE influencers SET name=$1, email=$2, phone=$3, referred_by=$4, referred_by_name=$5 WHERE ref_code=$6`,
+      [name, email, phone, referred_by || null, referred_by_name || null, ref_code]
     );
 
     res.json({ success: true });
